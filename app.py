@@ -1,10 +1,4 @@
 import streamlit as st
-
-# 1. Borrar todos los archivos sucios de app que se hayan creado mal
-Remove-Item "*app*.py*" -ErrorAction SilentlyContinue
-
-# 2. Crear el archivo app.py correctamente limpio
-Set-Content -Path "app.py" -Value 'import streamlit as st
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -80,9 +74,5 @@ if not df_res.empty:
     st.pyplot(fig)
     st.success("✅ ¡Cálculos actualizados!")
 else:
-    st.warning("Revisá el formato de los datos.")' -Encoding utf8
-
-# 3. Subir los cambios limpios a GitHub
-git add .
-git commit -m "Corregir nombre de archivo y limpiar codigo para Streamlit Cloud"
-git push origin main
+    st.warning("Revisá el formato de los datos.")
+    
