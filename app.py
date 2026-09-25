@@ -1,4 +1,4 @@
-cd C:\Users\USER\OneDrive\Escritorio
+import streamlit as st
 
 # 1. Borrar todos los archivos sucios de app que se hayan creado mal
 Remove-Item "*app*.py*" -ErrorAction SilentlyContinue
