@@ -1,107 +1,129 @@
+cd C:\Users\USER\OneDrive\Escritorio
+
+@'
 import streamlit as st
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+from datetime import datetime, timedelta
 
-st.set_page_config(page_title="Simulador de Generador Radioquímico", layout="wide")
+st.title("🧪 Simulador de Eluciones - Generador $^{99}\text{Mo} / ^{99m}\text{Tc}$")
+st.markdown("Herramienta interactiva para calcular ecuaciones de Bateman, comparar con valores reales y graficar curvas.")
 
-st.title("🧪 Simulador de Ecuaciones de Bateman - Generadores Radioquímicos")
-st.markdown("Herramienta interactiva para el cálculo teórico y experimental de eluciones (UNSAM 2026).")
+# --- 1. CONFIGURACIÓN INICIAL ---
+st.sidebar.header("1. Parámetros Iniciales (Calibración / 1era Elusión)")
 
-# --- BARRA LATERAL: CONFIGURACIÓN Y SELECCIÓN ---
-st.sidebar.header("⚙️ Configuración del Sistema")
-
-# Selector con múltiples pares radionucleídicos
-sistema = st.sidebar.selectbox(
-    "Seleccionar Par Radionucleídico (Madre / Hija)",
-    [
-        "Mo-99 / Tc-99m (Estándar)",
-        "Sn-113 / In-113m",
-        "Ge-68 / Ga-68 (PET)",
-        "Sr-82 / Rb-82 (PET Cardíaco)",
-        "Personalizado (Ingresar vidas medias)"
-    ]
+radiofarmaco = st.sidebar.selectbox(
+    "Seleccioná el Radiofármaco / Sistema:",
+    ["Molibdeno-99 / Tecnecio-99m (99Mo/99mTc)"]
 )
 
-# Valores por defecto según el sistema seleccionado (vidas medias en horas)
-if sistema == "Mo-99 / Tc-99m (Estándar)":
-    default_th_madre = 66.0       # 66 horas
-    default_th_hija = 6.02       # 6.02 horas
-elif sistema == "Sn-113 / In-113m":
-    default_th_madre = 2762.4    # ~115.1 días
-    default_th_hija = 1.658      # ~99.5 minutos
-elif sistema == "Ge-68 / Ga-68 (PET)":
-    default_th_madre = 6504.0    # ~271 días
-    default_th_hija = 1.133      # ~68 minutos
-elif sistema == "Sr-82 / Rb-82 (PET Cardíaco)":
-    default_th_madre = 607.2     # ~25.3 días
-    default_th_hija = 0.0208     # ~1.25 minutos
-else:
-    default_th_madre = 66.0
-    default_th_hija = 6.02
+lambda_mo = np.log(2) / 66.0
+lambda_tc = np.log(2) / 6.0
 
-# Campos editables para vidas medias
-st.sidebar.subheader("Vidas Medias ($T_{1/2}$)")
-t_half_madre = st.sidebar.number_input("T1/2 Madre (horas)", value=float(default_th_madre), format="%.4f")
-t_half_hija = st.sidebar.number_input("T1/2 Hija (horas)", value=float(default_th_hija), format="%.4f")
+fecha_ini = st.sidebar.date_input("Fecha inicial (Base)", value=datetime(2016, 4, 25).date())
+hora_ini_str = st.sidebar.text_input("Hora inicial (HH:MM)", value="08:00")
+actividad_inicial = st.sidebar.number_input("Actividad de referencia inicial (mCi)", value=887.0)
 
-# Cálculo de constantes de desintegración lambda = ln(2) / T_1/2
-lam_madre = np.log(2) / t_half_madre
-lam_hija = np.log(2) / t_half_hija
+try:
+    h_i, m_i = map(int, hora_ini_str.split(":"))
+    dt_inicial = datetime.combine(fecha_ini, datetime.min.time()) + timedelta(hours=h_i, minutes=m_i)
+except:
+    st.sidebar.error("Formato de hora inicial inválido. Usá HH:MM")
+    dt_inicial = datetime.combine(fecha_ini, datetime.min.time()) + timedelta(hours=8)
 
-st.sidebar.markdown(f"**$\lambda$ Madre:** `{lam_madre:.6f} h⁻¹`")
-st.sidebar.markdown(f"**$\lambda$ Hija:** `{lam_hija:.6f} h⁻¹`")
+# --- 2. CARGA DE DATOS DE ELUSIÓN ---
+st.sidebar.header("2. Ingreso de Eluciones a Evaluar")
+st.sidebar.markdown("Ingresá los datos tal cual aparecen en tu tabla de eluciones:")
 
-st.sidebar.subheader("Parámetros Iniciales")
-A0_madre = st.sidebar.number_input("Actividad inicial Madre ($A_{10}$ en mCi o MBq)", value=100.0)
-tiempo_max = st.sidebar.slider("Tiempo total de simulación (horas)", min_value=12, max_value=336, value=72, step=12)
+datos_por_defecto = """25/04/2016, 08:00, 887
+25/04/2016, 13:30, 397
+26/04/2016, 08:00, 530
+26/04/2016, 13:55, 307
+27/04/2016, 08:00, 415
+27/04/2016, 14:00, 230
+28/04/2016, 08:00, 342
+28/04/2016, 14:00, 174
+29/04/2016, 08:20, 255
+29/04/2016, 14:00, 139"""
 
-# --- ECUACIONES DE BATEMAN ---
-t = np.linspace(0, tiempo_max, 500)
+texto_eluciones = st.sidebar.text_area(
+    "Formato: Fecha (DD/MM/AAAA), Hora (HH:MM), Actividad Real (mCi)", 
+    value=datos_por_defecto,
+    height=200
+)
 
-# Actividad de la Madre
-A_madre = A0_madre * np.exp(-lam_madre * t)
+# --- 3. PROCESAMIENTO Y CÁLCULOS ---
+registros = []
+lineas = texto_eluciones.strip().split("\n")
 
-# Actividad de la Hija
-if abs(lam_hija - lam_madre) > 1e-6:
-    A_hija = A0_madre * (lam_hija / (lam_hija - lam_madre)) * (np.exp(-lam_madre * t) - np.exp(-lam_hija * t))
-else:
-    A_hija = A0_madre * lam_madre * t * np.exp(-lam_madre * t)
+for linea in lineas:
+    try:
+        partes = [p.strip() for p in linea.split(",")]
+        f_str, h_str, act_real = partes[0], partes[1], float(partes[2])
+        
+        f_date = datetime.strptime(f_str, "%d/%m/%Y").date()
+        hh, mm = map(int, h_str.split(":"))
+        dt_elusion = datetime.combine(f_date, datetime.min.time()) + timedelta(hours=hh, minutes=mm)
+        
+        delta_t = (dt_elusion - dt_inicial).total_seconds() / 3600.0
+        
+        if delta_t < 0:
+            continue
+            
+        mo_t = actividad_inicial * np.exp(-lambda_mo * delta_t)
+        tc_t = (lambda_tc / (lambda_tc - lambda_mo)) * actividad_inicial * (np.exp(-lambda_mo * delta_t) - np.exp(-lambda_tc * delta_t))
+        
+        if act_real > 0:
+            dif_porcentual = abs(act_real - tc_t) / act_real * 100
+        else:
+            dif_porcentual = 0.0
+            
+        registros.append({
+            "Fecha": f_str,
+            "Hora": h_str,
+            "Δt (h)": round(delta_t, 2),
+            "Mo-99 Teórico (mCi)": round(mo_t, 2),
+            "Tc-99m Teórico (mCi)": round(tc_t, 2),
+            "Actividad Real (mCi)": act_real,
+            "Dif. Porcentual (%)": round(dif_porcentual, 2)
+        })
+    except Exception as e:
+        continue
 
-# --- VISUALIZACIÓN EN PANTALLA ---
-col1, col2 = st.columns([2, 1])
+df_res = pd.DataFrame(registros)
 
-with col1:
-    st.subheader("📈 Curvas de Desintegración y Crecimiento (Ecuaciones de Bateman)")
-    fig, ax = plt.subplots(figsize=(9, 5))
-    ax.plot(t, A_madre, label="Madre (Padre)", color="crimson", linewidth=2.5)
-    ax.plot(t, A_hija, label="Hija (Generada)", color="dodgerblue", linewidth=2.5)
+# --- 4. VISUALIZACIÓN DE RESULTADOS Y GRÁFICO ---
+st.subheader("📊 Resultados y Comparación con Valores Reales")
+
+if not df_res.empty:
+    st.dataframe(df_res, use_container_width=True)
     
-    ax.set_xlabel("Tiempo (horas)", fontsize=11)
-    ax.set_ylabel("Actividad Relativa", fontsize=11)
-    ax.set_title("Evolución temporal del sistema generador", fontsize=12, fontweight="bold")
-    ax.grid(True, linestyle="--", alpha=0.6)
-    ax.legend(fontsize=11)
-    st.pyplot(fig)
-
-with col2:
-    st.subheader("⏱️ Datos Clave de Crecimiento")
-    if lam_hija > lam_madre:
-        t_max = np.log(lam_hija / lam_madre) / (lam_hija - lam_madre)
-        st.success(f"**Máximo de actividad hija:**\nA las **{t_max:.2f} horas**")
-    else:
-        st.warning("El sistema no presenta un régimen de crecimiento transitorio clásico (equilibrio secular/transitorio condicionado).")
+    st.subheader("Curva Teórica vs Puntos Reales")
+    fig, ax = plt.subplots(figsize=(10, 5))
     
-    st.info("💡 **Tip:** Ahora podés elegir entre los generadores de Tecnecio, Indio, Galio o Rubidio desde el menú desplegable de arriba.")
-
-# --- SECCIÓN DE DATOS EXPERIMENTALES ---
-st.markdown("---")
-st.subheader("📋 Registro de Datos Experimentales vs Teóricos")
-st.markdown("Ingresá tus valores medidos en el laboratorio para compararlos con la curva teórica:")
-
-df_default = pd.DataFrame({
-    "Tiempo de Elución (h)": [0.0, 6.0, 12.0, 24.0, 48.0],
-    "Actividad Experimental Hija (mCi)": [0.0, 35.5, 55.0, 68.2, 70.1]
-})
-
-df_user = st.data_editor(df_default, num_rows="dynamic", use_container_width=True)
+    if len(df_res) > 0:
+        t_max = df_res["Δt (h)"].max() * 1.1 if df_res["Δt (h)"].max() > 0 else 24
+        t_curva = np.linspace(0, t_max, 200)
+        
+        mo_curva = actividad_inicial * np.exp(-lambda_mo * t_curva)
+        tc_curva = (lambda_tc / (lambda_tc - lambda_mo)) * actividad_inicial * (np.exp(-lambda_mo * t_curva) - np.exp(-lambda_tc * t_curva))
+        
+        ax.plot(t_curva, mo_curva, label="Decaimiento $^{99}\text{Mo}$", color="blue", linestyle="--")
+        ax.plot(t_curva, tc_curva, label="Acumulación Teórica $^{99m}\text{Tc}$ (Bateman)", color="green")
+        
+        ax.scatter(df_res["Δt (h)"].astype(float), df_res["Actividad Real (mCi)"].astype(float), 
+                   color="red", label="Valores Reales (Eluciones)", zorder=5)
+        
+        ax.set_xlabel("Tiempo transcurrido (horas)")
+        ax.set_ylabel("Actividad (mCi)")
+        ax.set_title("Comportamiento del Generador 99Mo/99mTc")
+        ax.grid(True, linestyle=":", alpha=0.7)
+        ax.legend()
+        
+        st.pyplot(fig)
+    
+    st.success("✅ ¡Los cálculos y la gráfica se actualizaron automáticamente con los datos ingresados!")
+else:
+    st.warning("Revisá el formato de los datos ingresados en la barra lateral.")
+'@ | Out-File -FilePath "app.py" -Encoding utf8
