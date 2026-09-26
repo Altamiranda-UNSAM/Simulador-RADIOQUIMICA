@@ -3,7 +3,6 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from datetime import datetime, timedelta
-from scipy.optimize import minimize_scalar
 
 st.set_page_config(page_title="Radioquímica - UNSAM", layout="wide")
 
@@ -159,13 +158,16 @@ with tab_planificador:
                 dt_ult = datetime.fromtimestamp(ultima[0])
                 mo_ult = ultima[1]
                 
+                # Búsqueda numérica eficiente optimizada con NumPy (sin requerir scipy)
+                t_vals = np.linspace(0, 5000, 100000)
                 def fun(t):
-                    if t < 0: return 1e9
                     return mo_ult * np.exp(-lambdaMo * t) * FACTOR_TC_MO * (1 - np.exp(-lambdaTc * t)) - a_obj_bq
-
-                res = minimize_scalar(lambda t: abs(fun(t)), bounds=(0, 5000), method='bounded')
-                if res.success and abs(fun(res.x)) < a_obj_bq * 0.01:
-                    t_enc = res.x
+                
+                diffs = np.abs(fun(t_vals))
+                idx_min = np.argmin(diffs)
+                t_enc = t_vals[idx_min]
+                
+                if diffs[idx_min] < a_obj_bq * 0.05:
                     nueva_fecha = dt_ult + timedelta(hours=t_enc)
                     mo_nuevo = mo_ult * np.exp(-lambdaMo * t_enc)
                     tc_nuevo = mo_nuevo * FACTOR_TC_MO * (1 - np.exp(-lambdaTc * t_enc))
@@ -190,7 +192,6 @@ with tab_planificador:
                     dt_consulta = datetime.combine(fecha_cons, datetime.min.time()) + timedelta(hours=hc, minutes=mc)
                     ts_cons = datetime.timestamp(dt_consulta)
                     
-                    # Lógica MATLAB para hallar actividad en fecha arbitraria (hacia adelante o atrás)
                     elus_ord = sorted(st.session_state.elusiones, key=lambda x: x[0])
                     idx_ant = [i for i, e in enumerate(elus_ord) if e[0] <= ts_cons]
                     
@@ -206,10 +207,9 @@ with tab_planificador:
                             tc_c = mo_c * FACTOR_TC_MO * (1 - np.exp(-lambdaTc * dt_h))
                             detalle_txt = f"Calculado a {dt_h:.2f} h de la elusión N° {idx_ant[-1] + 1}."
                     else:
-                        # Si es anterior a la primera elusión
                         e_ref = elus_ord[0]
                         dt_ref = datetime.fromtimestamp(e_ref[0])
-                        dt_h = (dt_consulta - dt_ref).total_seconds() / 3600.0  # Negativo
+                        dt_h = (dt_consulta - dt_ref).total_seconds() / 3600.0
                         mo_c = e_ref[1] * np.exp(-lambdaMo * dt_h)
                         tc_c = mo_c * FACTOR_TC_MO
                         detalle_txt = f"Fecha anterior a la primera elusión (reconstruido en equilibrio a {abs(dt_h):.2f} h antes)."
@@ -244,7 +244,6 @@ with tab_planificador:
                 elusiones[kk][1] = mo_n
                 elusiones[kk][2] = tc_n
 
-    # Mostrar tarjeta de resultado de consulta si existe
     if 'resultado_consulta' in st.session_state:
         rc = st.session_state.resultado_consulta
         st.info(f"### 🔎 Resultado de Consulta ({rc['str_fecha']})\n"
@@ -343,5 +342,4 @@ st.markdown("---")
 st.markdown(
     "<p style='text-align: center; color: gray; font-size: 14px;'>Una creación de Exequiel Altamiranda, Cinthya Sturz, Lucia Gomez, para la Universidad de San Martin</p>",
     unsafe_allow_html=True
-        )
-    
+            )
