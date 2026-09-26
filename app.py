@@ -6,7 +6,8 @@ from datetime import datetime, timedelta
 
 st.set_page_config(page_title="Simulador Radioquímica 99Mo/99mTc", layout="wide")
 
-st.title("🧪 Simulador de Eluciones - Generador Mo-99 / Tc-99m")
+st.markdown("# 🧪 Simulador de Eluciones - Generador <sup>99</sup>Mo / <sup>99m</sup>Tc", unsafe_allow_html=True)
+
 st.markdown("Herramienta interactiva basada en el modelo de Bateman y gestión de eluciones sucesivas.")
 
 # --- CONSTANTES ---
