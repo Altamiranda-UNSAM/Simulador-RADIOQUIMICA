@@ -138,7 +138,7 @@ if menu == "CALCULADORA":
 # ==========================================
 elif menu == "PLANIFICADOR DE ELUSIONES":
     st.markdown("# 📋 Planificador de Eluciones - Generador <sup>99</sup>Mo / <sup>99m</sup>Tc", unsafe_allow_html=True)
-    st.markdown("Gestión completa de eluciones, cálculo hacia adelante/atrás y proyecciones[span_2](start_span)[span_2](end_span).")
+    st.markdown("Gestión completa de eluciones, cálculo hacia adelante/atrás y proyecciones.")
 
     col_izq, col_der = st.columns([1, 1.2])
 
