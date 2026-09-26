@@ -21,7 +21,6 @@ st.sidebar.header("1. Parámetros del Generador")
 unidad = st.sidebar.selectbox("Unidad de Actividad:", ["mCi", "MBq", "GBq"], index=0)
 actividad_ingresada = st.sidebar.number_input("Actividad de referencia:", value=500.0, min_value=0.0)
 
-# Conversión a mCi para cálculos internos
 def convertir_a_mci(val, un):
     if un == "mCi":
         return val
@@ -53,7 +52,7 @@ datos_por_defecto = """25/04/2016, 08:00, 500
 
 texto_eluciones = st.sidebar.text_area("Formato: Fecha (DD/MM/AAAA), Hora (HH:MM), Actividad Medida", value=datos_por_defecto, height=150)
 
-# --- PROCESAMIENTO DE ELUCIONES CON LÓGICA SECUENCIAL ---
+# --- PROCESAMIENTO DE ELUCIONES ---
 lista_eluciones = []
 for linea in texto_eluciones.strip().split("\n"):
     if not linea.strip():
@@ -79,12 +78,10 @@ for linea in texto_eluciones.strip().split("\n"):
     except:
         continue
 
-# Ordenar cronológicamente
 lista_eluciones = sorted(lista_eluciones, key=lambda x: x["datetime"])
 
-# Calcular actividad teórica de Mo y Tc para cada elución considerando el tiempo desde la última extracción
+# --- CÁLCULO DE TABLA ---
 registros_tabla = []
-
 for i, el in enumerate(lista_eluciones):
     t_abs = el["delta_inicio"]
     mo_el = actividad_inicial * np.exp(-lambda_mo * t_abs)
@@ -129,8 +126,24 @@ with col2:
     fechas_curva = [dt_inicial + timedelta(hours=float(t)) for t in t_curva]
     
     mo_curva = actividad_inicial * np.exp(-lambda_mo * t_curva)
-    tc_curva = (lambda_tc / (lambda_tc - lambda_mo)) * actividad_inicial * (np.exp(-lambda_mo * t_curva) - np.exp(-lambda_tc * t_curva))
     
+    # Lógica de curva de Tc con reseteo en cada elución (dientes de sierra)
+    tc_curva = np.zeros_like(t_curva)
+    fechas_el_dt = [el["datetime"] for el in lista_eluciones]
+    
+    for k, t_val in enumerate(t_curva):
+        actual_dt = dt_inicial + timedelta(hours=float(t_val))
+        anteriores = [f for f in fechas_el_dt if f <= actual_dt]
+        
+        if not anteriores:
+            tc_curva[k] = (lambda_tc / (lambda_tc - lambda_mo)) * actividad_inicial * (np.exp(-lambda_mo * t_val) - np.exp(-lambda_tc * t_val))
+        else:
+            ultima_fecha = anteriores[-1]
+            t_desde_ultima = (actual_dt - ultima_fecha).total_seconds() / 3600.0
+            t_hasta_ultima = (ultima_fecha - dt_inicial).total_seconds() / 3600.0
+            mo_ultima = actividad_inicial * np.exp(-lambda_mo * t_hasta_ultima)
+            tc_curva[k] = (lambda_tc / (lambda_tc - lambda_mo)) * mo_ultima * (np.exp(-lambda_mo * t_desde_ultima) - np.exp(-lambda_tc * t_desde_ultima))
+
     ax.plot(fechas_curva, mo_curva, label="99Mo (Padre)", color="blue", linewidth=2, linestyle="--")
     ax.plot(fechas_curva, tc_curva, label="99mTc (Hijo - Acumulación)", color="green", linewidth=2)
     
