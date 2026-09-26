@@ -35,10 +35,16 @@ def convertir_a_mci(val, un):
 
 ain = convertir_a_mci(actividad_ingresada, unidad)
 
+# --- CORRECCIÓN FÍSICA DE LA ACTIVIDAD INICIAL ---
+# Factor de equilibrio transitorio teórico
+factor_equilibrio = br * (lambda_tc / (lambda_tc - lambda_mo))
+
 if tipo_actividad == '99mTc en equilibrio':
-    actividad_inicial = ain
+    # Si ingresamos Tc en equilibrio, calculamos el Mo inicial necesario para generarlo
+    actividad_inicial_mo = ain / factor_equilibrio
 else:
-    actividad_inicial = ain
+    # Si ingresamos Mo directamente
+    actividad_inicial_mo = ain
 
 fecha_ini = st.sidebar.date_input("Fecha inicial (Calibración)", value=datetime(2016, 4, 25).date())
 hora_ini_str = st.sidebar.text_input("Hora inicial (HH:MM)", value="08:00")
@@ -88,18 +94,18 @@ for linea in texto_eluciones.strip().split("\n"):
 
 lista_eluciones = sorted(lista_eluciones, key=lambda x: x["datetime"])
 
-# --- CÁLCULO DE TABLA (CON FACTOR BR) ---
+# --- CÁLCULO DE TABLA (CON B Y EQUILIBRIO CORRECTO) ---
 registros_tabla = []
 for i, el in enumerate(lista_eluciones):
     t_abs = el["delta_inicio"]
-    mo_el = actividad_inicial * np.exp(-lambda_mo * t_abs)
+    mo_el = actividad_inicial_mo * np.exp(-lambda_mo * t_abs)
     
     if i == 0:
         t_acumulado = t_abs
-        tc_el = br * (lambda_tc / (lambda_tc - lambda_mo)) * actividad_inicial * (np.exp(-lambda_mo * t_acumulado) - np.exp(-lambda_tc * t_acumulado))
+        tc_el = br * (lambda_tc / (lambda_tc - lambda_mo)) * actividad_inicial_mo * (np.exp(-lambda_mo * t_acumulado) - np.exp(-lambda_tc * t_acumulado))
     else:
         t_desde_anterior = (el["datetime"] - lista_eluciones[i-1]["datetime"]).total_seconds() / 3600.0
-        mo_anterior = actividad_inicial * np.exp(-lambda_mo * lista_eluciones[i-1]["delta_inicio"])
+        mo_anterior = actividad_inicial_mo * np.exp(-lambda_mo * lista_eluciones[i-1]["delta_inicio"])
         tc_el = br * (lambda_tc / (lambda_tc - lambda_mo)) * mo_anterior * (np.exp(-lambda_mo * t_desde_anterior) - np.exp(-lambda_tc * t_desde_anterior))
 
     dif_porcentual = abs(el["act_medida"] - tc_el) / el["act_medida"] * 100 if el["act_medida"] > 0 else 0.0
@@ -116,7 +122,7 @@ for i, el in enumerate(lista_eluciones):
 
 df_res = pd.DataFrame(registros_tabla)
 
-# --- VISTA PRINCIPAL (ORGANIZACIÓN VERTICAL) ---
+# --- VISTA PRINCIPAL ---
 
 st.subheader("📋 Tabla de Eluciones")
 if not df_res.empty:
@@ -132,7 +138,7 @@ fig, ax = plt.subplots(figsize=(11, 5))
 t_curva = np.arange(0, duracion_grafico + paso_grafico, paso_grafico)
 fechas_curva = [dt_inicial + timedelta(hours=float(t)) for t in t_curva]
 
-mo_curva = actividad_inicial * np.exp(-lambda_mo * t_curva)
+mo_curva = actividad_inicial_mo * np.exp(-lambda_mo * t_curva)
 
 tc_curva = np.zeros_like(t_curva)
 fechas_el_dt = [el["datetime"] for el in lista_eluciones]
@@ -142,12 +148,12 @@ for k, t_val in enumerate(t_curva):
     anteriores = [f for f in fechas_el_dt if f <= actual_dt]
     
     if not anteriores:
-        tc_curva[k] = br * (lambda_tc / (lambda_tc - lambda_mo)) * actividad_inicial * (np.exp(-lambda_mo * t_val) - np.exp(-lambda_tc * t_val))
+        tc_curva[k] = br * (lambda_tc / (lambda_tc - lambda_mo)) * actividad_inicial_mo * (np.exp(-lambda_mo * t_val) - np.exp(-lambda_tc * t_val))
     else:
         ultima_fecha = anteriores[-1]
         t_desde_ultima = (actual_dt - ultima_fecha).total_seconds() / 3600.0
         t_hasta_ultima = (ultima_fecha - dt_inicial).total_seconds() / 3600.0
-        mo_ultima = actividad_inicial * np.exp(-lambda_mo * t_hasta_ultima)
+        mo_ultima = actividad_inicial_mo * np.exp(-lambda_mo * t_hasta_ultima)
         tc_curva[k] = br * (lambda_tc / (lambda_tc - lambda_mo)) * mo_ultima * (np.exp(-lambda_mo * t_desde_ultima) - np.exp(-lambda_tc * t_desde_ultima))
 
 ax.plot(fechas_curva, mo_curva, label="99Mo (Padre)", color="blue", linewidth=2, linestyle="--")
@@ -163,7 +169,7 @@ ax.legend(loc="upper right")
 plt.xticks(rotation=25)
 st.pyplot(fig)
 
-# --- PIE DE PÁGINA (MARCA DE AGUA) ---
+# --- PIE DE PÁGINA ---
 st.markdown("---")
 st.markdown(
     "<p style='text-align: center; color: gray; font-size: 14px;'>Una creación de Exequiel Altamiranda, Cinthya Sturz, Lucia Gomez, para la Universidad de San Martin</p>",
