@@ -44,7 +44,6 @@ def formatear_actividad(bq):
 
 # --- INICIALIZAR ESTADO DE SESIÓN PARA EL PLANIFICADOR ---
 if 'elusiones' not in st.session_state:
-    # Cada elusión: [datetime_obj, Mo_bq, Tc_bq, Tc_objetivo, tipo_planificado]
     st.session_state.elusiones = []
 if 'elusion_pendiente' not in st.session_state:
     st.session_state.elusion_pendiente = None
@@ -59,7 +58,7 @@ menu = st.sidebar.radio("Menú Principal", ["CALCULADORA", "PLANIFICADOR DE ELUS
 # ==========================================
 if menu == "CALCULADORA":
     st.markdown("# 🧪 RADIOQUÍMICA - Calculadora")
-    st.markdown("Herramienta interactiva basada en las operaciones del script de MATLAB[span_1](start_span)[span_1](end_span).")
+    st.markdown("Operaciones basadas en el script de MATLAB.")
 
     col1, col2 = st.columns([1, 2])
 
@@ -134,11 +133,11 @@ if menu == "CALCULADORA":
             st.error(f"Error en el cálculo: {e}")
 
 # ==========================================
-# 2. MÓDULO PLANIFICADOR DE ELUSIONES (MATLAB PORT)
+# 2. MÓDULO PLANIFICADOR DE ELUSIONES
 # ==========================================
 elif menu == "PLANIFICADOR DE ELUSIONES":
     st.markdown("# 📋 Planificador de Eluciones - Generador <sup>99</sup>Mo / <sup>99m</sup>Tc", unsafe_allow_html=True)
-    st.markdown("Gestión completa de eluciones, cálculo hacia adelante/atrás y proyecciones.")
+    st.markdown("Gestión de eluciones y proyecciones basadas en MATLAB.")
 
     col_izq, col_der = st.columns([1, 1.2])
 
@@ -189,7 +188,6 @@ elif menu == "PLANIFICADOR DE ELUSIONES":
                         fecha_ult = ultima[0]
                         Mo_ult = ultima[1]
                         
-                        # Buscar fecha óptima mediante optimización numérica (equivalente al script de MATLAB)[span_3](start_span)[span_3](end_span)
                         fun = lambda t: Mo_ult * np.exp(-lambda_mo * t) * FACTOR_TC_MO * (1 - np.exp(-lambda_tc * t)) - A_obj_bq
                         tt = np.linspace(0, 5000, 50001)
                         yy = np.array([fun(t) for t in tt])
@@ -219,7 +217,6 @@ elif menu == "PLANIFICADOR DE ELUSIONES":
                                 encontrado = True
 
                         if not encontrado:
-                            # Cálculo hacia atrás si se requiere más de lo disponible en equilibrio
                             Aeq_actual = Mo_ult * FACTOR_TC_MO
                             if A_obj_bq > Aeq_actual:
                                 t_back = np.log(A_obj_bq / Aeq_actual) / lambda_mo
@@ -258,9 +255,7 @@ elif menu == "PLANIFICADOR DE ELUSIONES":
                     try:
                         hh, mm = map(int, h_cons.split(":"))
                         dt_c = datetime.combine(f_cons, datetime.min.time()) + timedelta(hours=hh, minutes=mm)
-                        # Calcular actividad en esa fecha
-                        fnum_c = dt_c
-                        anteriores = [e for e in st.session_state.elusiones if e[0] <= fnum_c]
+                        anteriores = [e for e in st.session_state.elusiones if e[0] <= dt_c]
                         if anteriores:
                             e = anteriores[-1]
                             dt_h = (dt_c - e[0]).total_seconds() / 3600.0
@@ -311,7 +306,6 @@ elif menu == "PLANIFICADOR DE ELUSIONES":
                 })
             st.dataframe(pd.DataFrame(data_tabla), use_container_width=True)
 
-            # Gráfico interactivo estilo MATLAB
             fig, ax = plt.subplots(figsize=(10, 4.5))
             f1 = st.session_state.elusiones[0][0]
             f2 = st.session_state.elusiones[-1][0]
@@ -324,7 +318,6 @@ elif menu == "PLANIFICADOR DE ELUSIONES":
             tt = np.linspace(0, duracion, 300)
             fechas_g = [inicio_g + timedelta(hours=float(t)) for t in tt]
             
-            # Reconstrucción de curvas continuas
             mo_g = []
             tc_g = []
             for dt_val in fechas_g:
@@ -366,7 +359,7 @@ elif menu == "INFORMACIÓN":
     st.markdown("""
     Herramientas de radioquímica adaptadas fielmente del script original de MATLAB:
     * **Calculadora:** Operaciones puntuales de decaimiento y conversiones.
-    * **Planificador de Eluciones:** Permite calcular hacia adelante y hacia atrás en el tiempo según la actividad de Tecnecio deseada, manteniendo el historial completo y generando curvas de decaimiento exactas[span_4](start_span)[span_4](end_span).
+    * **Planificador de Eluciones:** Permite calcular hacia adelante y hacia atrás en el tiempo según la actividad de Tecnecio deseada, manteniendo el historial completo y generando curvas de decaimiento exactas.
     """)
 
 # --- PIE DE PÁGINA ---
@@ -374,5 +367,4 @@ st.markdown("---")
 st.markdown(
     "<p style='text-align: center; color: gray; font-size: 14px;'>Una creación de Exequiel Altamiranda, Cinthya Sturz, Lucia Gomez, para la Universidad de San Martin</p>",
     unsafe_allow_html=True
-                            )
-    
+)
