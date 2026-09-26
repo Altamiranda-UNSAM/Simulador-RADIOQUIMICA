@@ -18,8 +18,9 @@ lambda_tc = np.log(2) / T12Tc
 # --- PANEL LATERAL ---
 st.sidebar.header("1. Parámetros del Generador")
 
+tipo_actividad = st.sidebar.selectbox("Actividad conocida:", ["99mTc en equilibrio", "99Mo"])
 unidad = st.sidebar.selectbox("Unidad de Actividad:", ["mCi", "MBq", "GBq"], index=0)
-actividad_ingresada = st.sidebar.number_input("Actividad de referencia:", value=500.0, min_value=0.0)
+actividad_ingresada = st.sidebar.number_input("Actividad:", value=500.0, min_value=0.0)
 
 def convertir_a_mci(val, un):
     if un == "mCi":
@@ -30,7 +31,13 @@ def convertir_a_mci(val, un):
         return val * 1000.0 / 37.0
     return val
 
-actividad_inicial = convertir_a_mci(actividad_ingresada, unidad)
+ain = convertir_a_mci(actividad_ingresada, unidad)
+
+# Lógica de actividad inicial según selección
+if tipo_actividad == '99mTc en equilibrio':
+    actividad_inicial = ain
+else:
+    actividad_inicial = ain
 
 fecha_ini = st.sidebar.date_input("Fecha inicial (Calibración)", value=datetime(2016, 4, 25).date())
 hora_ini_str = st.sidebar.text_input("Hora inicial (HH:MM)", value="08:00")
@@ -108,52 +115,56 @@ for i, el in enumerate(lista_eluciones):
 
 df_res = pd.DataFrame(registros_tabla)
 
-# --- VISUALIZACIÓN ---
-col1, col2 = st.columns([1, 2])
+# --- VISTA PRINCIPAL (ORGANIZACIÓN VERTICAL) ---
 
-with col1:
-    st.subheader("📋 Tabla de Eluciones")
-    if not df_res.empty:
-        st.dataframe(df_res, use_container_width=True)
+st.subheader("📋 Tabla de Eluciones")
+if not df_res.empty:
+    st.dataframe(df_res, use_container_width=True)
+else:
+    st.warning("No hay eluciones válidas cargadas.")
+
+st.markdown("---")
+
+st.subheader("📊 Proyección Gráfica")
+fig, ax = plt.subplots(figsize=(11, 5))
+
+t_curva = np.arange(0, duracion_grafico + paso_grafico, paso_grafico)
+fechas_curva = [dt_inicial + timedelta(hours=float(t)) for t in t_curva]
+
+mo_curva = actividad_inicial * np.exp(-lambda_mo * t_curva)
+
+tc_curva = np.zeros_like(t_curva)
+fechas_el_dt = [el["datetime"] for el in lista_eluciones]
+
+for k, t_val in enumerate(t_curva):
+    actual_dt = dt_inicial + timedelta(hours=float(t_val))
+    anteriores = [f for f in fechas_el_dt if f <= actual_dt]
+    
+    if not anteriores:
+        tc_curva[k] = (lambda_tc / (lambda_tc - lambda_mo)) * actividad_inicial * (np.exp(-lambda_mo * t_val) - np.exp(-lambda_tc * t_val))
     else:
-        st.warning("No hay eluciones válidas cargadas.")
+        ultima_fecha = anteriores[-1]
+        t_desde_ultima = (actual_dt - ultima_fecha).total_seconds() / 3600.0
+        t_hasta_ultima = (ultima_fecha - dt_inicial).total_seconds() / 3600.0
+        mo_ultima = actividad_inicial * np.exp(-lambda_mo * t_hasta_ultima)
+        tc_curva[k] = (lambda_tc / (lambda_tc - lambda_mo)) * mo_ultima * (np.exp(-lambda_mo * t_desde_ultima) - np.exp(-lambda_tc * t_desde_ultima))
 
-with col2:
-    st.subheader("📊 Proyección Gráfica")
-    fig, ax = plt.subplots(figsize=(9, 5))
-    
-    t_curva = np.arange(0, duracion_grafico + paso_grafico, paso_grafico)
-    fechas_curva = [dt_inicial + timedelta(hours=float(t)) for t in t_curva]
-    
-    mo_curva = actividad_inicial * np.exp(-lambda_mo * t_curva)
-    
-    # Lógica de curva de Tc con reseteo en cada elución (dientes de sierra)
-    tc_curva = np.zeros_like(t_curva)
-    fechas_el_dt = [el["datetime"] for el in lista_eluciones]
-    
-    for k, t_val in enumerate(t_curva):
-        actual_dt = dt_inicial + timedelta(hours=float(t_val))
-        anteriores = [f for f in fechas_el_dt if f <= actual_dt]
-        
-        if not anteriores:
-            tc_curva[k] = (lambda_tc / (lambda_tc - lambda_mo)) * actividad_inicial * (np.exp(-lambda_mo * t_val) - np.exp(-lambda_tc * t_val))
-        else:
-            ultima_fecha = anteriores[-1]
-            t_desde_ultima = (actual_dt - ultima_fecha).total_seconds() / 3600.0
-            t_hasta_ultima = (ultima_fecha - dt_inicial).total_seconds() / 3600.0
-            mo_ultima = actividad_inicial * np.exp(-lambda_mo * t_hasta_ultima)
-            tc_curva[k] = (lambda_tc / (lambda_tc - lambda_mo)) * mo_ultima * (np.exp(-lambda_mo * t_desde_ultima) - np.exp(-lambda_tc * t_desde_ultima))
+ax.plot(fechas_curva, mo_curva, label="99Mo (Padre)", color="blue", linewidth=2, linestyle="--")
+ax.plot(fechas_curva, tc_curva, label="99mTc (Hijo - Acumulación)", color="green", linewidth=2)
 
-    ax.plot(fechas_curva, mo_curva, label="99Mo (Padre)", color="blue", linewidth=2, linestyle="--")
-    ax.plot(fechas_curva, tc_curva, label="99mTc (Hijo - Acumulación)", color="green", linewidth=2)
+for el in lista_eluciones:
+    ax.axvline(el["datetime"], color="red", linestyle=":", alpha=0.7)
     
-    for el in lista_eluciones:
-        ax.axvline(el["datetime"], color="red", linestyle=":", alpha=0.7)
-        
-    ax.set_xlabel("Fecha y hora")
-    ax.set_ylabel(f"Actividad ({unidad})")
-    ax.grid(True, linestyle=":", alpha=0.7)
-    ax.legend(loc="upper right")
-    plt.xticks(rotation=25)
-    st.pyplot(fig)
-    
+ax.set_xlabel("Fecha y hora")
+ax.set_ylabel(f"Actividad ({unidad})")
+ax.grid(True, linestyle=":", alpha=0.7)
+ax.legend(loc="upper right")
+plt.xticks(rotation=25)
+st.pyplot(fig)
+
+# --- PIE DE PÁGINA (MARCA DE AGUA) ---
+st.markdown("---")
+st.markdown(
+    "<p style='text-align: center; color: gray; font-size: 14px;'>Una creación de Exequiel Altamiranda, Cinthya Sturz, Lucia Gomez, para la Universidad de San Martin</p>",
+    unsafe_allow_html=True
+)
