@@ -6,15 +6,16 @@ from datetime import datetime, timedelta
 
 st.set_page_config(page_title="Simulador Radioquímica 99Mo/99mTc", layout="wide")
 
+# Título con superíndices correctos en HTML
 st.markdown("# 🧪 Simulador de Eluciones - Generador <sup>99</sup>Mo / <sup>99m</sup>Tc", unsafe_allow_html=True)
-
-st.markdown("Herramienta interactiva basada en el modelo de Bateman y gestión de eluciones sucesivas.")
+st.markdown("Herramienta interactiva basada en el modelo de Bateman, factor de ramificación y gestión de eluciones sucesivas.")
 
 # --- CONSTANTES ---
 T12Mo = 66.0
 T12Tc = 6.0067
 lambda_mo = np.log(2) / T12Mo
 lambda_tc = np.log(2) / T12Tc
+br = 0.9625  # Factor de ramificación (Padre -> Hijo)
 
 # --- PANEL LATERAL ---
 st.sidebar.header("1. Parámetros del Generador")
@@ -34,7 +35,6 @@ def convertir_a_mci(val, un):
 
 ain = convertir_a_mci(actividad_ingresada, unidad)
 
-# Lógica de actividad inicial según selección
 if tipo_actividad == '99mTc en equilibrio':
     actividad_inicial = ain
 else:
@@ -88,7 +88,7 @@ for linea in texto_eluciones.strip().split("\n"):
 
 lista_eluciones = sorted(lista_eluciones, key=lambda x: x["datetime"])
 
-# --- CÁLCULO DE TABLA ---
+# --- CÁLCULO DE TABLA (CON FACTOR BR) ---
 registros_tabla = []
 for i, el in enumerate(lista_eluciones):
     t_abs = el["delta_inicio"]
@@ -96,11 +96,11 @@ for i, el in enumerate(lista_eluciones):
     
     if i == 0:
         t_acumulado = t_abs
-        tc_el = (lambda_tc / (lambda_tc - lambda_mo)) * actividad_inicial * (np.exp(-lambda_mo * t_acumulado) - np.exp(-lambda_tc * t_acumulado))
+        tc_el = br * (lambda_tc / (lambda_tc - lambda_mo)) * actividad_inicial * (np.exp(-lambda_mo * t_acumulado) - np.exp(-lambda_tc * t_acumulado))
     else:
         t_desde_anterior = (el["datetime"] - lista_eluciones[i-1]["datetime"]).total_seconds() / 3600.0
         mo_anterior = actividad_inicial * np.exp(-lambda_mo * lista_eluciones[i-1]["delta_inicio"])
-        tc_el = (lambda_tc / (lambda_tc - lambda_mo)) * mo_anterior * (np.exp(-lambda_mo * t_desde_anterior) - np.exp(-lambda_tc * t_desde_anterior))
+        tc_el = br * (lambda_tc / (lambda_tc - lambda_mo)) * mo_anterior * (np.exp(-lambda_mo * t_desde_anterior) - np.exp(-lambda_tc * t_desde_anterior))
 
     dif_porcentual = abs(el["act_medida"] - tc_el) / el["act_medida"] * 100 if el["act_medida"] > 0 else 0.0
     
@@ -142,13 +142,13 @@ for k, t_val in enumerate(t_curva):
     anteriores = [f for f in fechas_el_dt if f <= actual_dt]
     
     if not anteriores:
-        tc_curva[k] = (lambda_tc / (lambda_tc - lambda_mo)) * actividad_inicial * (np.exp(-lambda_mo * t_val) - np.exp(-lambda_tc * t_val))
+        tc_curva[k] = br * (lambda_tc / (lambda_tc - lambda_mo)) * actividad_inicial * (np.exp(-lambda_mo * t_val) - np.exp(-lambda_tc * t_val))
     else:
         ultima_fecha = anteriores[-1]
         t_desde_ultima = (actual_dt - ultima_fecha).total_seconds() / 3600.0
         t_hasta_ultima = (ultima_fecha - dt_inicial).total_seconds() / 3600.0
         mo_ultima = actividad_inicial * np.exp(-lambda_mo * t_hasta_ultima)
-        tc_curva[k] = (lambda_tc / (lambda_tc - lambda_mo)) * mo_ultima * (np.exp(-lambda_mo * t_desde_ultima) - np.exp(-lambda_tc * t_desde_ultima))
+        tc_curva[k] = br * (lambda_tc / (lambda_tc - lambda_mo)) * mo_ultima * (np.exp(-lambda_mo * t_desde_ultima) - np.exp(-lambda_tc * t_desde_ultima))
 
 ax.plot(fechas_curva, mo_curva, label="99Mo (Padre)", color="blue", linewidth=2, linestyle="--")
 ax.plot(fechas_curva, tc_curva, label="99mTc (Hijo - Acumulación)", color="green", linewidth=2)
