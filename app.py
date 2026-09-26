@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 
 st.set_page_config(page_title="Simulador Radioquímica 99Mo/99mTc", layout="wide")
 
-# Título con superíndices correctos en HTML exactamente como lo tenías
+# Título original exacto con superíndices correctos en HTML
 st.markdown("# 🧪 Simulador de Eluciones - Generador <sup>99</sup>Mo / <sup>99m</sup>Tc", unsafe_allow_html=True)
 st.markdown("Herramienta interactiva basada en el modelo de Bateman, factor de ramificación y gestión de eluciones sucesivas.")
 
@@ -17,7 +17,7 @@ lambda_mo = np.log(2) / T12Mo
 lambda_tc = np.log(2) / T12Tc
 br = 0.9625  # Factor de ramificación exacto (Padre -> Hijo)
 
-# --- FUNCIONES DE CONVERSIÓN UNIVERSAL (Base Bq exacta MATLAB) ---
+# --- MOTOR DE CONVERSIÓN DE UNIDADES MATLAB (Base Bq exacta) ---
 def convertir_a_bq(valor, unidad):
     if unidad == 'Bq': return valor
     elif unidad == 'kBq': return valor * 1e3
@@ -39,18 +39,22 @@ def convertir_desde_bq(bq, unidad):
     return bq
 
 # --- PANEL LATERAL ---
-st.sidebar.header("1. Parámetros del Generador")
+st.sidebar.header("1. Parámetros del Generador y Conversión")
 
 tipo_actividad = st.sidebar.selectbox("Actividad conocida:", ["99mTc en equilibrio", "99Mo"])
+
+# Selector completo de unidades de MATLAB
 unidades_disponibles = ["mCi", "uCi", "MBq", "GBq", "Bq", "kBq", "dpm"]
 unidad_ingreso = st.sidebar.selectbox("Unidad de Actividad (Ingreso):", unidades_disponibles, index=0)
-unidad_resultado = st.sidebar.selectbox("Unidad de Resultados/Gráfico:", unidades_disponibles, index=0)
+unidad_resultado = st.sidebar.selectbox("Unidad de Resultados y Gráfico:", unidades_disponibles, index=0)
 
 actividad_ingresada = st.sidebar.number_input("Actividad:", value=500.0, min_value=0.0)
 
-# Conversión a Bq base MATLAB y ajuste según el tipo de actividad inicial
+# Conversión exacta utilizando Bq como pivote (idéntico a MATLAB)
 ain_bq = convertir_a_bq(actividad_ingresada, unidad_ingreso)
+
 if tipo_actividad == '99mTc en equilibrio':
+    # Si se ingresa Tc en equilibrio, calculamos el Mo inicial considerando el factor de ramificación (br)
     mo_ini_bq = ain_bq / br
 else:
     mo_ini_bq = ain_bq
@@ -91,15 +95,11 @@ for linea in texto_eluciones.strip().split("\n"):
         if delta_t_inicio < 0:
             continue
             
-        # Convertimos la actividad medida ingresada a Bq para estandarizar los cálculos
-        act_medida_bq = convertir_a_bq(act_medida_ing, unidad_resultado)
-            
         lista_eluciones.append({
             "datetime": dt_elusion,
             "fecha_str": f_str,
             "hora_str": h_str,
             "delta_inicio": delta_t_inicio,
-            "act_medida_bq": act_medida_bq,
             "act_medida_ing": act_medida_ing
         })
     except:
@@ -107,10 +107,11 @@ for linea in texto_eluciones.strip().split("\n"):
 
 lista_eluciones = sorted(lista_eluciones, key=lambda x: x["datetime"])
 
-# --- CÁLCULO DE TABLA (CON TODAS LAS ECUACIONES DE BATEMAN Y FACTOR BR) ---
+# --- CÁLCULO DE TABLA (ECUACIONES DE BATEMAN Y CONVERSIÓN DE UNIDADES) ---
 registros_tabla = []
 for i, el in enumerate(lista_eluciones):
     t_abs = el["delta_inicio"]
+    # Mo decae en función del tiempo absoluto en Bq
     mo_el_bq = mo_ini_bq * np.exp(-lambda_mo * t_abs)
     
     if i == 0:
@@ -122,10 +123,10 @@ for i, el in enumerate(lista_eluciones):
         mo_anterior_bq = mo_ini_bq * np.exp(-lambda_mo * dt_ant)
         tc_el_bq = br * (lambda_tc / (lambda_tc - lambda_mo)) * mo_anterior_bq * (np.exp(-lambda_mo * t_desde_anterior) - np.exp(-lambda_tc * t_desde_anterior))
 
-    # Convertir resultados a la unidad seleccionada para mostrar en tabla
+    # Convertir valores teóricos finales a la unidad seleccionada por el usuario
     mo_val_res = convertir_desde_bq(mo_el_bq, unidad_resultado)
     tc_val_res = convertir_desde_bq(tc_el_bq, unidad_resultado)
-    act_medida_res = el["act_medida_ing"] # O se puede mostrar adaptada según unidad
+    act_medida_res = el["act_medida_ing"]
 
     dif_porcentual = abs(act_medida_res - tc_val_res) / act_medida_res * 100 if act_medida_res > 0 else 0.0
     
@@ -141,8 +142,7 @@ for i, el in enumerate(lista_eluciones):
 
 df_res = pd.DataFrame(registros_tabla)
 
-# --- VISTA PRINCIPAL (ORGANIZACIÓN VERTICAL) ---
-
+# --- VISTA PRINCIPAL ---
 st.subheader("📋 Tabla de Eluciones")
 if not df_res.empty:
     st.dataframe(df_res, use_container_width=True)
