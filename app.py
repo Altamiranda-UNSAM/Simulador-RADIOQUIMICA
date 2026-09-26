@@ -10,25 +10,25 @@ st.title("🧪 Simulador de Eluciones - Generador $^{99}\text{Mo} / ^{99m}\text{
 st.markdown("Herramienta interactiva basada en el modelo de Bateman y gestión de eluciones sucesivas.")
 
 # --- CONSTANTES ---
-T12Mo = 66.0[span_4](start_span)[span_4](end_span)
-T12Tc = 6.0067[span_5](start_span)[span_5](end_span)
-lambda_mo = np.log(2) / T12Mo[span_6](start_span)[span_6](end_span)
-lambda_tc = np.log(2) / T12Tc[span_7](start_span)[span_7](end_span)
+T12Mo = 66.0
+T12Tc = 6.0067
+lambda_mo = np.log(2) / T12Mo
+lambda_tc = np.log(2) / T12Tc
 
 # --- PANEL LATERAL ---
 st.sidebar.header("1. Parámetros del Generador")
 
 unidad = st.sidebar.selectbox("Unidad de Actividad:", ["mCi", "MBq", "GBq"], index=0)
-actividad_ingresada = st.sidebar.number_input("Actividad de referencia:", value=500.0, min_f_val=0.0)
+actividad_ingresada = st.sidebar.number_input("Actividad de referencia:", value=500.0, min_value=0.0)
 
 # Conversión a mCi para cálculos internos
 def convertir_a_mci(val, un):
     if un == "mCi":
         return val
     elif un == "MBq":
-        return val / 37.0[span_8](start_span)[span_8](end_span)
+        return val / 37.0
     elif un == "GBq":
-        return val * 1000.0 / 37.0[span_9](start_span)[span_9](end_span)
+        return val * 1000.0 / 37.0
     return val
 
 actividad_inicial = convertir_a_mci(actividad_ingresada, unidad)
@@ -43,8 +43,8 @@ except:
     st.sidebar.error("Formato de hora inicial inválido. Use HH:MM")
     dt_inicial = datetime.combine(fecha_ini, datetime.min.time()) + timedelta(hours=8)
 
-duracion_grafico = st.sidebar.number_input("Duración gráfico (horas):", value=144.0, min_value=1.0)[span_10](start_span)[span_10](end_span)
-paso_grafico = st.sidebar.number_input("Paso gráfico (horas):", value=0.25, min_value=0.01)[span_11](start_span)[span_11](end_span)
+duracion_grafico = st.sidebar.number_input("Duración gráfico (horas):", value=144.0, min_value=1.0)
+paso_grafico = st.sidebar.number_input("Paso gráfico (horas):", value=0.25, min_value=0.01)
 
 st.sidebar.header("2. Registro de Eluciones")
 datos_por_defecto = """25/04/2016, 08:00, 500
@@ -84,19 +84,15 @@ lista_eluciones = sorted(lista_eluciones, key=lambda x: x["datetime"])
 
 # Calcular actividad teórica de Mo y Tc para cada elución considerando el tiempo desde la última extracción
 registros_tabla = []
-tiempo_ultima_elucion = 0.0
 
 for i, el in enumerate(lista_eluciones):
     t_abs = el["delta_inicio"]
-    # Actividad de Mo en el momento de la elución
     mo_el = actividad_inicial * np.exp(-lambda_mo * t_abs)
     
     if i == 0:
-        # Primera elución: acumula desde el inicio del generador
         t_acumulado = t_abs
         tc_el = (lambda_tc / (lambda_tc - lambda_mo)) * actividad_inicial * (np.exp(-lambda_mo * t_acumulado) - np.exp(-lambda_tc * t_acumulado))
     else:
-        # Eluciones posteriores: acumulan desde la elución anterior
         t_desde_anterior = (el["datetime"] - lista_eluciones[i-1]["datetime"]).total_seconds() / 3600.0
         mo_anterior = actividad_inicial * np.exp(-lambda_mo * lista_eluciones[i-1]["delta_inicio"])
         tc_el = (lambda_tc / (lambda_tc - lambda_mo)) * mo_anterior * (np.exp(-lambda_mo * t_desde_anterior) - np.exp(-lambda_tc * t_desde_anterior))
@@ -129,25 +125,22 @@ with col2:
     st.subheader("📊 Proyección Gráfica")
     fig, ax = plt.subplots(figsize=(9, 5))
     
-    t_curva = np.arange(0, duracion_grafico + paso_grafico, paso_grafico)[span_12](start_span)[span_12](end_span)
+    t_curva = np.arange(0, duracion_grafico + paso_grafico, paso_grafico)
     fechas_curva = [dt_inicial + timedelta(hours=float(t)) for t in t_curva]
     
-    mo_curva = actividad_inicial * np.exp(-lambda_mo * t_curva)[span_13](start_span)[span_13](end_span)
+    mo_curva = actividad_inicial * np.exp(-lambda_mo * t_curva)
+    tc_curva = (lambda_tc / (lambda_tc - lambda_mo)) * actividad_inicial * (np.exp(-lambda_mo * t_curva) - np.exp(-lambda_tc * t_curva))
     
-    # Curva teórica continua de acumulación general de Tc-99m
-    tc_curva = (lambda_tc / (lambda_tc - lambda_mo)) * actividad_inicial * (np.exp(-lambda_mo * t_curva) - np.exp(-lambda_tc * t_curva))[span_14](start_span)[span_14](end_span)
+    ax.plot(fechas_curva, mo_curva, label="99Mo (Padre)", color="blue", linewidth=2, linestyle="--")
+    ax.plot(fechas_curva, tc_curva, label="99mTc (Hijo - Acumulación)", color="green", linewidth=2)
     
-    ax.plot(fechas_curva, mo_curva, label="99Mo (Padre)", color="blue", linewidth=2, linestyle="--")[span_15](start_span)[span_15](end_span)
-    ax.plot(fechas_curva, tc_curva, label="99mTc (Hijo - Acumulación)", color="green", linewidth=2)[span_16](start_span)[span_16](end_span)
-    
-    # Marcar líneas verticales de eluciones en el gráfico
     for el in lista_eluciones:
-        ax.axvline(el["datetime"], color="red", linestyle=":", alpha=0.7)[span_17](start_span)[span_17](end_span)
+        ax.axvline(el["datetime"], color="red", linestyle=":", alpha=0.7)
         
-    ax.set_xlabel("Fecha y hora")[span_18](start_span)[span_18](end_span)
-    ax.set_ylabel(f"Actividad ({unidad})")[span_19](start_span)[span_19](end_span)
-    ax.grid(True, linestyle=":", alpha=0.7)[span_20](start_span)[span_20](end_span)
-    ax.legend(loc="upper right")[span_21](start_span)[span_21](end_span)
+    ax.set_xlabel("Fecha y hora")
+    ax.set_ylabel(f"Actividad ({unidad})")
+    ax.grid(True, linestyle=":", alpha=0.7)
+    ax.legend(loc="upper right")
     plt.xticks(rotation=25)
     st.pyplot(fig)
     
