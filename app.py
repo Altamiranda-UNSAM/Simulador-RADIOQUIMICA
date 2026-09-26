@@ -34,14 +34,6 @@ def convertir_desde_bq(bq, unidad):
     elif unidad == 'dpm': return bq * 60.0
     return bq
 
-def formatear_actividad(bq):
-    val = convertir_desde_bq(bq, 'mCi')
-    if val == 0: return '0'
-    elif abs(val) >= 0.01 and abs(val) < 1e5:
-        return f"{val:.8f}".rstrip('0').rstrip('.')
-    else:
-        return f"{val:.8g}"
-
 # --- MENÚ PRINCIPAL (LATERAL) ---
 st.sidebar.markdown("# ☢️ MEDICINA NUCLEAR")
 st.sidebar.markdown("Herramientas de radioquímica")
@@ -70,7 +62,6 @@ if menu == "CALCULADORA":
         unidades_disponibles = ['mCi', 'uCi', 'Bq', 'kBq', 'MBq', 'GBq', 'dpm']
         unidad = st.selectbox("Unidad:", unidades_disponibles, index=0)
 
-        # Mostrar campos de tiempo solo si corresponde
         mostrar_tiempo = opcion in ['99Mo después de un tiempo', '99mTc después de un tiempo']
         if mostrar_tiempo:
             tiempo = st.number_input("Tiempo:", value=24.0, min_value=0.0)
@@ -83,8 +74,6 @@ if menu == "CALCULADORA":
 
     with col2:
         st.subheader("Datos y Resultado")
-        
-        # Realizar cálculos según la opción seleccionada de MATLAB
         try:
             A_Bq = convertir_a_bq(actival := actividad, unidad)
             formula_texto = ""
@@ -130,11 +119,11 @@ if menu == "CALCULADORA":
             st.error(f"Error en el cálculo: {e}")
 
 # ==========================================
-# 2. MÓDULO PLANIFICADOR DE ELUSIONES
+# 2. MÓDULO PLANIFICADOR DE ELUSIONES (CON MÚLTIPLES GRÁFICAS)
 # ==========================================
 elif menu == "PLANIFICADOR DE ELUSIONES":
     st.markdown("# 📋 Simulador y Planificador de Eluciones - Generador <sup>99</sup>Mo / <sup>99m</sup>Tc", unsafe_allow_html=True)
-    st.markdown("Herramienta interactiva basada en el modelo de Bateman, factor de ramificación y gestión de eluciones sucesivas.")
+    st.markdown("Herramienta interactiva con opciones avanzadas de visualización gráfica.")
 
     st.sidebar.header("1. Parámetros del Generador")
     tipo_actividad = st.sidebar.selectbox("Actividad conocida:", ["99mTc en equilibrio", "99Mo"])
@@ -154,7 +143,6 @@ elif menu == "PLANIFICADOR DE ELUSIONES":
         h_i, m_i = map(int, hora_ini_str.split(":"))
         dt_inicial = datetime.combine(fecha_ini, datetime.min.time()) + timedelta(hours=h_i, minutes=m_i)
     except:
-        st.sidebar.error("Formato de hora inicial inválido. Use HH:MM")
         dt_inicial = datetime.combine(fecha_ini, datetime.min.time()) + timedelta(hours=8)
 
     duracion_grafico = st.sidebar.number_input("Duración gráfico (horas):", value=144.0, min_value=1.0)
@@ -164,46 +152,32 @@ elif menu == "PLANIFICADOR DE ELUSIONES":
     datos_por_defecto = """25/04/2016, 08:00, 500
 26/04/2016, 08:00, 300
 27/04/2016, 08:00, 200"""
-
     texto_eluciones = st.sidebar.text_area("Formato: Fecha (DD/MM/AAAA), Hora (HH:MM), Actividad Medida", value=datos_por_defecto, height=150)
 
-    # Procesamiento de eluciones
+    # Procesar eluciones
     lista_eluciones = []
     for linea in texto_eluciones.strip().split("\n"):
-        if not linea.strip():
-            continue
+        if not linea.strip(): continue
         try:
             partes = [p.strip() for p in linea.split(",")]
             f_str, h_str, act_medida = partes[0], partes[1], float(partes[2])
             f_date = datetime.strptime(f_str, "%d/%m/%Y").date()
             hh, mm = map(int, h_str.split(":"))
             dt_elusion = datetime.combine(f_date, datetime.min.time()) + timedelta(hours=hh, minutes=mm)
-            
             delta_t_inicio = (dt_elusion - dt_inicial).total_seconds() / 3600.0
-            if delta_t_inicio < 0:
-                continue
-                
-            lista_eluciones.append({
-                "datetime": dt_elusion,
-                "fecha_str": f_str,
-                "hora_str": h_str,
-                "delta_inicio": delta_t_inicio,
-                "act_medida": act_medida
-            })
+            if delta_t_inicio < 0: continue
+            lista_eluciones.append({"datetime": dt_elusion, "fecha_str": f_str, "hora_str": h_str, "delta_inicio": delta_t_inicio, "act_medida": act_medida})
         except:
             continue
-
     lista_eluciones = sorted(lista_eluciones, key=lambda x: x["datetime"])
 
-    # Cálculos con Bateman y Factor Br
+    # Cálculos tabla
     registros_tabla = []
     for i, el in enumerate(lista_eluciones):
         t_abs = el["delta_inicio"]
         mo_el_bq = mo_ini_bq * np.exp(-lambda_mo * t_abs)
-        
         if i == 0:
-            t_acumulado = t_abs
-            tc_el_bq = FACTOR_TC_MO * (lambda_tc / (lambda_tc - lambda_mo)) * mo_ini_bq * (np.exp(-lambda_mo * t_acumulado) - np.exp(-lambda_tc * t_acumulado))
+            tc_el_bq = FACTOR_TC_MO * (lambda_tc / (lambda_tc - lambda_mo)) * mo_ini_bq * (np.exp(-lambda_mo * t_abs) - np.exp(-lambda_tc * t_abs))
         else:
             t_desde_anterior = (el["datetime"] - lista_eluciones[i-1]["datetime"]).total_seconds() / 3600.0
             dt_ant = lista_eluciones[i-1]["delta_inicio"]
@@ -212,62 +186,69 @@ elif menu == "PLANIFICADOR DE ELUSIONES":
 
         mo_val = convertir_desde_bq(mo_el_bq, unidad_ing)
         tc_val = convertir_desde_bq(tc_el_bq, unidad_ing)
-        dif_porcentual = abs(el["act_medida"] - tc_val) / el["act_medida"] * 100 if el["act_medida"] > 0 else 0.0
-        
-        registros_tabla.append({
-            "Elusión N°": i + 1,
-            "Fecha/Hora": f"{el['fecha_str']} {el['hora_str']}",
-            "Δt Total (h)": round(t_abs, 2),
-            f"Mo-99 Teórico ({unidad_ing})": round(mo_val, 2),
-            f"Tc-99m Teórico ({unidad_ing})": round(tc_val, 2),
-            f"Actividad Medida ({unidad_ing})": el["act_medida"],
-            "Dif. (%)": round(dif_porcentual, 2)
-        })
+        dif = abs(el["act_medida"] - tc_val) / el["act_medida"] * 100 if el["act_medida"] > 0 else 0.0
+        registros_tabla.append({"Elusión N°": i + 1, "Fecha/Hora": f"{el['fecha_str']} {el['hora_str']}", f"Mo-99 ({unidad_ing})": round(mo_val, 2), f"Tc-99m ({unidad_ing})": round(tc_val, 2), f"Medida ({unidad_ing})": el["act_medida"], "Dif. (%)": round(dif, 2)})
 
     df_res = pd.DataFrame(registros_tabla)
-
     st.subheader("📋 Tabla de Eluciones")
-    if not df_res.empty:
-        st.dataframe(df_res, use_container_width=True)
-    else:
-        st.warning("No hay eluciones válidas cargadas.")
+    if not df_res.empty: st.dataframe(df_res, use_container_width=True)
 
     st.markdown("---")
-    st.subheader("📊 Proyección Gráfica")
-    fig, ax = plt.subplots(figsize=(11, 5))
+    st.subheader("📊 Selector de Gráficas Avanzadas")
+    tipo_grafica = st.selectbox("Elegí el tipo de gráfico a mostrar:", [
+        "Curva completa del Generador (Mo-99 y Tc-99m con eluciones)",
+        "Decaimiento simple aislado de Mo-99",
+        "Decaimiento simple aislado de Tc-99m",
+        "Comparación de curvas de decaimiento simple (Mo-99 vs Tc-99m)"
+    ])
 
+    fig, ax = plt.subplots(figsize=(11, 5))
     t_curva = np.arange(0, duracion_grafico + paso_grafico, paso_grafico)
     fechas_curva = [dt_inicial + timedelta(hours=float(t)) for t in t_curva]
 
     mo_curva_bq = mo_ini_bq * np.exp(-lambda_mo * t_curva)
     mo_curva_res = [convertir_desde_bq(val, unidad_ing) for val in mo_curva_bq]
 
-    tc_curva_bq = np.zeros_like(t_curva)
-    fechas_el_dt = [el["datetime"] for el in lista_eluciones]
+    if tipo_grafica == "Curva completa del Generador (Mo-99 y Tc-99m con eluciones)":
+        tc_curva_bq = np.zeros_like(t_curva)
+        fechas_el_dt = [el["datetime"] for el in lista_eluciones]
+        for k, t_val in enumerate(t_curva):
+            actual_dt = dt_inicial + timedelta(hours=float(t_val))
+            anteriores = [f for f in fechas_el_dt if f <= actual_dt]
+            if not anteriores:
+                tc_curva_bq[k] = FACTOR_TC_MO * (lambda_tc / (lambda_tc - lambda_mo)) * mo_ini_bq * (np.exp(-lambda_mo * t_val) - np.exp(-lambda_tc * t_val))
+            else:
+                ultima_fecha = anteriores[-1]
+                t_desde_ultima = (actual_dt - ultima_fecha).total_seconds() / 3600.0
+                t_hasta_ultima = (ultima_fecha - dt_inicial).total_seconds() / 3600.0
+                mo_ultima_bq = mo_ini_bq * np.exp(-lambda_mo * t_hasta_ultima)
+                tc_curva_bq[k] = FACTOR_TC_MO * (lambda_tc / (lambda_tc - lambda_mo)) * mo_ultima_bq * (np.exp(-lambda_mo * t_desde_ultima) - np.exp(-lambda_tc * t_desde_ultima))
+        tc_curva_res = [convertir_desde_bq(val, unidad_ing) for val in tc_curva_bq]
 
-    for k, t_val in enumerate(t_curva):
-        actual_dt = dt_inicial + timedelta(hours=float(t_val))
-        anteriores = [f for f in fechas_el_dt if f <= actual_dt]
-        
-        if not anteriores:
-            tc_curva_bq[k] = FACTOR_TC_MO * (lambda_tc / (lambda_tc - lambda_mo)) * mo_ini_bq * (np.exp(-lambda_mo * t_val) - np.exp(-lambda_tc * t_val))
-        else:
-            ultima_fecha = anteriores[-1]
-            t_desde_ultima = (actual_dt - ultima_fecha).total_seconds() / 3600.0
-            t_hasta_ultima = (ultima_fecha - dt_inicial).total_seconds() / 3600.0
-            mo_ultima_bq = mo_ini_bq * np.exp(-lambda_mo * t_hasta_ultima)
-            tc_curva_bq[k] = FACTOR_TC_MO * (lambda_tc / (lambda_tc - lambda_mo)) * mo_ultima_bq * (np.exp(-lambda_mo * t_desde_ultima) - np.exp(-lambda_tc * t_desde_ultima))
+        ax.plot(fechas_curva, mo_curva_res, label=f"99Mo (Padre) [{unidad_ing}]", color="blue", linestyle="--", linewidth=2)
+        ax.plot(fechas_curva, tc_curva_res, label=f"99mTc (Hijo - Acumulación) [{unidad_ing}]", color="green", linewidth=2)
+        for el in lista_eluciones:
+            ax.axvline(el["datetime"], color="red", linestyle=":", alpha=0.7)
+        ax.set_ylabel(f"Actividad ({unidad_ing})")
 
-    tc_curva_res = [convertir_desde_bq(val, unidad_ing) for val in tc_curva_bq]
+    elif tipo_grafica == "Decaimiento simple aislado de Mo-99":
+        ax.plot(fechas_curva, mo_curva_res, label=f"Decaimiento 99Mo [{unidad_ing}]", color="blue", linewidth=2)
+        ax.set_ylabel(f"Actividad 99Mo ({unidad_ing})")
 
-    ax.plot(fechas_curva, mo_curva_res, label=f"99Mo (Padre) [{unidad_ing}]", color="blue", linewidth=2, linestyle="--")
-    ax.plot(fechas_curva, tc_curva_res, label=f"99mTc (Hijo - Acumulación) [{unidad_ing}]", color="green", linewidth=2)
+    elif tipo_grafica == "Decaimiento simple aislado de Tc-99m":
+        tc_aislado_bq = ain_bq * np.exp(-lambda_tc * t_curva)
+        tc_aislado_res = [convertir_desde_bq(val, unidad_ing) for val in tc_aislado_bq]
+        ax.plot(fechas_curva, tc_aislado_res, label=f"Decaimiento simple 99mTc (sin padre) [{unidad_ing}]", color="orange", linewidth=2)
+        ax.set_ylabel(f"Actividad 99mTc ({unidad_ing})")
 
-    for el in lista_eluciones:
-        ax.axvline(el["datetime"], color="red", linestyle=":", alpha=0.7)
-        
+    elif tipo_grafica == "Comparación de curvas de decaimiento simple (Mo-99 vs Tc-99m)":
+        mo_dec = mo_curva_res
+        tc_dec = [convertir_desde_bq(ain_bq * np.exp(-lambda_tc * t), unidad_ing) for t in t_curva]
+        ax.plot(fechas_curva, mo_dec, label=f"99Mo (T1/2 = 66h)", color="blue", linewidth=2)
+        ax.plot(fechas_curva, tc_dec, label=f"99mTc aislado (T1/2 = 6h)", color="purple", linestyle="--", linewidth=2)
+        ax.set_ylabel(f"Actividad ({unidad_ing})")
+
     ax.set_xlabel("Fecha y hora")
-    ax.set_ylabel(f"Actividad ({unidad_ing})")
     ax.grid(True, linestyle=":", alpha=0.7)
     ax.legend(loc="upper right")
     plt.xticks(rotation=25)
@@ -278,15 +259,7 @@ elif menu == "PLANIFICADOR DE ELUSIONES":
 # ==========================================
 elif menu == "INFORMACIÓN":
     st.markdown("# ℹ️ Información General")
-    st.markdown("""
-    Esta aplicación integra las herramientas de radioquímica del script original de MATLAB para la gestión de generadores de **${}^{99}Mo / {}^{99m}Tc$**:
-    * **Calculadora:** Realiza conversiones y cálculos directos de decaimiento y relación padre-hijo usando el factor de ramificación ($0.9625$).
-    * **Planificador de Eluciones:** Permite modelar el comportamiento del generador mediante el modelo de Bateman a lo largo del tiempo, registrando extracciones sucesivas y generando proyecciones gráficas automáticas.
-    """)
+    st.markdown("Aplicación de radioquímica para generadores ${}^{99}Mo / {}^{99m}Tc$.")
 
-# --- PIE DE PÁGINA ---
 st.markdown("---")
-st.markdown(
-    "<p style='text-align: center; color: gray; font-size: 14px;'>Una creación de Exequiel Altamiranda, Cinthya Sturz, Lucia Gomez, para la Universidad de San Martin</p>",
-    unsafe_allow_html=True
-        )
+st.markdown("<p style='text-align: center; color: gray; font-size: 14px;'>Una creación de Exequiel Altamiranda, Cinthya Sturz, Lucia Gomez, para la Universidad de San Martin</p>", unsafe_allow_html=True)
