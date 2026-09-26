@@ -17,13 +17,31 @@ lambda_mo = np.log(2) / T12Mo
 lambda_tc = np.log(2) / T12Tc
 br = 0.9625  # Factor de ramificación (Padre -> Hijo)
 
-# --- PANEL LATERAL ---
-st.sidebar.header("1. Parámetros del Generador")
+# --- PANEL LATERAL CON FORMULARIO Y BOTÓN DE CÁLCULO ---
+with st.sidebar.form("form_calculador"):
+    st.header("1. Parámetros del Generador")
 
-tipo_actividad = st.sidebar.selectbox("Actividad conocida:", ["99mTc en equilibrio", "99Mo"])
-unidad = st.sidebar.selectbox("Unidad de Actividad:", ["mCi", "MBq", "GBq"], index=0)
-actividad_ingresada = st.sidebar.number_input("Actividad:", value=500.0, min_value=0.0)
+    tipo_actividad = st.selectbox("Actividad conocida:", ["99mTc en equilibrio", "99Mo"])
+    unidad = st.selectbox("Unidad de Actividad:", ["mCi", "MBq", "GBq"], index=0)
+    actividad_ingresada = st.number_input("Actividad:", value=450.0, min_value=0.0)
 
+    fecha_ini = st.date_input("Fecha inicial (Calibración)", value=datetime(2016, 4, 25).date())
+    hora_ini_str = st.text_input("Hora inicial (HH:MM)", value="08:00")
+
+    duracion_grafico = st.number_input("Duración gráfico (horas):", value=144.0, min_value=1.0)
+    paso_grafico = st.number_input("Paso gráfico (horas):", value=0.25, min_value=0.01)
+
+    st.header("2. Registro de Eluciones")
+    datos_por_defecto = """25/04/2016, 08:00, 450
+26/04/2016, 08:00, 300
+27/04/2016, 08:00, 200"""
+
+    texto_eluciones = st.text_area("Formato: Fecha (DD/MM/AAAA), Hora (HH:MM), Actividad Medida", value=datos_por_defecto, height=150)
+
+    # Botón de cálculo requerido
+    boton_calcular = st.form_submit_button(label="🧮 Calcular")
+
+# --- CONVERSIÓN Y LÓGICA ---
 def convertir_a_mci(val, un):
     if un == "mCi":
         return val
@@ -34,20 +52,12 @@ def convertir_a_mci(val, un):
     return val
 
 ain = convertir_a_mci(actividad_ingresada, unidad)
-
-# --- CORRECCIÓN FÍSICA DE LA ACTIVIDAD INICIAL ---
-# Factor de equilibrio transitorio teórico
 factor_equilibrio = br * (lambda_tc / (lambda_tc - lambda_mo))
 
 if tipo_actividad == '99mTc en equilibrio':
-    # Si ingresamos Tc en equilibrio, calculamos el Mo inicial necesario para generarlo
     actividad_inicial_mo = ain / factor_equilibrio
 else:
-    # Si ingresamos Mo directamente
     actividad_inicial_mo = ain
-
-fecha_ini = st.sidebar.date_input("Fecha inicial (Calibración)", value=datetime(2016, 4, 25).date())
-hora_ini_str = st.sidebar.text_input("Hora inicial (HH:MM)", value="08:00")
 
 try:
     h_i, m_i = map(int, hora_ini_str.split(":"))
@@ -55,16 +65,6 @@ try:
 except:
     st.sidebar.error("Formato de hora inicial inválido. Use HH:MM")
     dt_inicial = datetime.combine(fecha_ini, datetime.min.time()) + timedelta(hours=8)
-
-duracion_grafico = st.sidebar.number_input("Duración gráfico (horas):", value=144.0, min_value=1.0)
-paso_grafico = st.sidebar.number_input("Paso gráfico (horas):", value=0.25, min_value=0.01)
-
-st.sidebar.header("2. Registro de Eluciones")
-datos_por_defecto = """25/04/2016, 08:00, 500
-26/04/2016, 08:00, 300
-27/04/2016, 08:00, 200"""
-
-texto_eluciones = st.sidebar.text_area("Formato: Fecha (DD/MM/AAAA), Hora (HH:MM), Actividad Medida", value=datos_por_defecto, height=150)
 
 # --- PROCESAMIENTO DE ELUCIONES ---
 lista_eluciones = []
@@ -94,7 +94,7 @@ for linea in texto_eluciones.strip().split("\n"):
 
 lista_eluciones = sorted(lista_eluciones, key=lambda x: x["datetime"])
 
-# --- CÁLCULO DE TABLA (CON B Y EQUILIBRIO CORRECTO) ---
+# --- CÁLCULO DE TABLA ---
 registros_tabla = []
 for i, el in enumerate(lista_eluciones):
     t_abs = el["delta_inicio"]
