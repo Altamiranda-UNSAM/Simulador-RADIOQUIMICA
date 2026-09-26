@@ -42,9 +42,8 @@ def formatear_actividad(bq, unidad_res="mCi"):
     else:
         return f"{val:.6g}"
 
-# --- TÍTULO PRINCIPAL ---
-st.markdown("# ☢️ RADIOQUÍMICA", unsafe_allow_html=True)
-st.markdown("Herramienta de cálculo de actividad radioquímica - Universidad de San Martín")
+# --- TÍTULO ORIGINAL ---
+st.title("Elusión de 99Mo y 99mTc")
 st.markdown("---")
 
 # --- MENÚ PRINCIPAL (PESTAÑAS) ---
@@ -158,7 +157,6 @@ with tab_planificador:
                 dt_ult = datetime.fromtimestamp(ultima[0])
                 mo_ult = ultima[1]
                 
-                # Búsqueda numérica eficiente optimizada con NumPy (sin requerir scipy)
                 t_vals = np.linspace(0, 5000, 100000)
                 def fun(t):
                     return mo_ult * np.exp(-lambdaMo * t) * FACTOR_TC_MO * (1 - np.exp(-lambdaTc * t)) - a_obj_bq
@@ -342,4 +340,4 @@ st.markdown("---")
 st.markdown(
     "<p style='text-align: center; color: gray; font-size: 14px;'>Una creación de Exequiel Altamiranda, Cinthya Sturz, Lucia Gomez, para la Universidad de San Martin</p>",
     unsafe_allow_html=True
-            )
+)
