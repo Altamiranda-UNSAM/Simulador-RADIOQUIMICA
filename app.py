@@ -357,7 +357,7 @@ elif menu == "PLANIFICADOR DE ELUSIONES":
 elif menu == "INFORMACIÓN":
     st.markdown("# ℹ️ Información General")
     st.markdown("""
-    Herramientas de radioquímica adaptadas fielmente del script original de MATLAB:
+    Herramientas de radioquímica adaptadas:
     * **Calculadora:** Operaciones puntuales de decaimiento y conversiones.
     * **Planificador de Eluciones:** Permite calcular hacia adelante y hacia atrás en el tiempo según la actividad de Tecnecio deseada, manteniendo el historial completo y generando curvas de decaimiento exactas.
     """)
