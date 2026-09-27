@@ -58,7 +58,6 @@ menu = st.sidebar.radio("Menú Principal", ["CALCULADORA", "PLANIFICADOR DE ELUS
 # ==========================================
 if menu == "CALCULADORA":
     st.markdown("# 🧪 RADIOQUÍMICA - Calculadora")
-    st.markdown("Operaciones basadas en el script de MATLAB.")
 
     col1, col2 = st.columns([1, 2])
 
@@ -78,8 +77,8 @@ if menu == "CALCULADORA":
 
         mostrar_tiempo = opcion in ['99Mo después de un tiempo', '99mTc después de un tiempo']
         if mostrar_tiempo:
-            tiempo = st.number_input("Tiempo:", value=24.0, min_value=0.0)
-            unidad_tiempo = st.selectbox("Unidad de tiempo:", ['horas', 'días'])
+            tiempo = st.number_input("Tiempo (positivo = futuro, negativo = pasado):", value=-30.0, min_value=-100000.0)
+            unidad_tiempo = st.selectbox("Unidad de tiempo:", ['minutos', 'horas', 'días'])
         else:
             tiempo = 0.0
             unidad_tiempo = 'horas'
@@ -105,18 +104,30 @@ if menu == "CALCULADORA":
                 mensaje = "Actividad de 99mTc obtenida a partir de 99Mo."
 
             elif opcion == '99Mo después de un tiempo':
-                t_h = tiempo * 24.0 if unidad_tiempo == 'días' else tiempo
+                if unidad_tiempo == 'días':
+                    t_h = tiempo * 24.0
+                elif unidad_tiempo == 'minutos':
+                    t_h = tiempo / 60.0
+                else:
+                    t_h = tiempo
+                
                 R_bq = A_Bq * np.exp(-lambda_mo * t_h)
                 R = convertir_desde_bq(R_bq, unidad_resultado)
                 formula_texto = f"A_f = A_0 x e^(-lambda*t)\nlambda = ln(2)/66 h\nt = {t_h} h\nA_f = {R:.8g} {unidad_resultado}"
-                mensaje = "Decaimiento simple del 99Mo."
+                mensaje = "Cálculo de actividad de 99Mo (tiempo positivo = futuro, negativo = pasado)."
 
             elif opcion == '99mTc después de un tiempo':
-                t_h = tiempo * 24.0 if unidad_tiempo == 'días' else tiempo
+                if unidad_tiempo == 'días':
+                    t_h = tiempo * 24.0
+                elif unidad_tiempo == 'minutos':
+                    t_h = tiempo / 60.0
+                else:
+                    t_h = tiempo
+
                 R_bq = A_Bq * np.exp(-lambda_tc * t_h)
                 R = convertir_desde_bq(R_bq, unidad_resultado)
                 formula_texto = f"A_f = A_0 x e^(-lambda*t)\nlambda = ln(2)/6.0067 h\nt = {t_h} h\nA_f = {R:.8g} {unidad_resultado}"
-                mensaje = "Decaimiento simple del 99mTc."
+                mensaje = "Cálculo de actividad de 99mTc (tiempo positivo = futuro, negativo = pasado)."
 
             elif opcion == 'Conversión de unidades':
                 R_bq = A_Bq
@@ -357,9 +368,9 @@ elif menu == "PLANIFICADOR DE ELUSIONES":
 elif menu == "INFORMACIÓN":
     st.markdown("# ℹ️ Información General")
     st.markdown("""
-    Herramientas de radioquímica adaptadas:
-    * **Calculadora:** Operaciones puntuales de decaimiento y conversiones.
-    * **Planificador de Eluciones:** Permite calcular hacia adelante y hacia atrás en el tiempo según la actividad de Tecnecio deseada, manteniendo el historial completo y generando curvas de decaimiento exactas.
+    Herramientas de radioquímica.
+    * **Calculadora:** Permite cálculo directo y hacia atrás ingresando tiempos negativos (en minutos, horas o días).
+    * **Planificador de Eluciones:** Permite calcular hacia adelante y hacia atrás en el tiempo según la actividad de Tecnecio deseada, manteniendo el historial completo.
     """)
 
 # --- PIE DE PÁGINA ---
