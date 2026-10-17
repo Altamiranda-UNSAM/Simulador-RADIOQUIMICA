@@ -77,7 +77,7 @@ st.sidebar.markdown('# ☢️ MEDICINA NUCLEAR')
 st.sidebar.markdown('Herramientas de radioquímica')
 menu = st.sidebar.radio(
     'Menú Principal',
-    ['CALCULADORA', 'PLANIFICADOR DE ELUSIONES', 'INFORMACIÓN'],
+    ['CALCULADORA', 'PLANIFICADOR DE ELUCIONES', 'INFORMACIÓN'],
 )
 
 # ==========================================
