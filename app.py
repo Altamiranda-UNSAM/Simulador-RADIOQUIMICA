@@ -532,7 +532,7 @@ elif menu == "INFORMACIÓN":
 st.markdown("---")
 st.markdown(
     "<p style='text-align: center; color: gray; font-size: 14px;'>Una"
-    " creación de Exequiel Altamiranda, Cinthya Sturz, Lucia Gomez, para la"
+    " creación de Exequiel Altamiranda, Cinthya Sturtz, Lucia Gomez, para la"
     " Universidad de San Martin</p>",
     unsafe_allow_html=True,
 )
