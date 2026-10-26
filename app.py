@@ -5,17 +5,29 @@ import pandas as pd
 import streamlit as st
 
 st.set_page_config(page_title="Radioquímica - Medicina Nuclear", layout="wide")
-# --- MARCA DE AGUA DE FONDO (Logo UNSAM) ---
+# --- MARCA DE AGUA DE FONDO (Logo UNSAM) PERFECTA ---
 st.markdown(
     """
     <style>
-    .stApp {
+    .stApp::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
         background-image: url("https://raw.githubusercontent.com/Altamiranda-UNSAM/Simulador-RADIOQUIMICA/main/Logo_UNSAM.png");
         background-repeat: no-repeat;
         background-position: center center;
-        background-size: 400px;
+        background-size: 450px;
         background-attachment: fixed;
-        opacity: 0.12;
+        opacity: 0.12; /* Acá manejas lo tenue que querés que se vea el logo (0.1 o 0.15) */
+        z-index: 0;
+    }
+    /* Asegura que todo el contenido de la app quede por encima del logo y no pierda nitidez */
+    .stApp > * {
+        position: relative;
+        z-index: 1;
     }
     </style>
     """,
