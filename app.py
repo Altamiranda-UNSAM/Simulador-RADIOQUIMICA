@@ -10,12 +10,12 @@ st.markdown(
     """
     <style>
     .stApp {
-        background-image: url("Logo_UNSAM.png");
+        background-image: url("https://raw.githubusercontent.com/Altamiranda-UNSAM/Simulador-RADIOQUIMICA/main/Logo_UNSAM.png");
         background-repeat: no-repeat;
         background-position: center center;
-        background-size: 400px; /* Tamaño del logo en el fondo */
+        background-size: 400px;
         background-attachment: fixed;
-        opacity: 0.95; /* Si querés que sea más tenue como marca de agua, proba bajándolo a 0.1 o 0.15 */
+        opacity: 0.12;
     }
     </style>
     """,
