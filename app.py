@@ -5,6 +5,22 @@ import pandas as pd
 import streamlit as st
 
 st.set_page_config(page_title="Radioquímica - Medicina Nuclear", layout="wide")
+# --- MARCA DE AGUA DE FONDO (Logo UNSAM) ---
+st.markdown(
+    """
+    <style>
+    .stApp {
+        background-image: url("Logo_UNSAM.png");
+        background-repeat: no-repeat;
+        background-position: center center;
+        background-size: 400px; /* Tamaño del logo en el fondo */
+        background-attachment: fixed;
+        opacity: 0.95; /* Si querés que sea más tenue como marca de agua, proba bajándolo a 0.1 o 0.15 */
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
 
 # --- CONSTANTES DE MATLAB ---
 T12Mo = 66.0
